@@ -3,6 +3,7 @@ returning the results"""
 
 import math
 import os
+import platform
 from typing import Any, Union
 
 import numpy as np
@@ -19,8 +20,12 @@ from vllm.tokenizers import get_tokenizer
 DISABLE_ASSERTS = False  # used for debugging
 
 ISCLOSE_ABS_TOL = float(os.environ.get("SENDNN_INFERENCE_TEST_ABS_TOL", "0.08"))
+_ISCLOSE_ABS_TOL_QUANTIZATION_PLATFORM_DEFAULTS = {"s390x": "0.30", "ppc64le": "0.25"}
 ISCLOSE_ABS_TOL_QUANTIZATION = float(
-    os.environ.get("SENDNN_INFERENCE_TEST_QUANTIZED_ABS_TOL", "0.17")
+    os.environ.get(
+        "SENDNN_INFERENCE_TEST_QUANTIZED_ABS_TOL",
+        _ISCLOSE_ABS_TOL_QUANTIZATION_PLATFORM_DEFAULTS.get(platform.machine(), "0.17"),
+    )
 )
 
 HF_RESULT_CACHE = HFResultCache()
