@@ -3,6 +3,7 @@ returning the results"""
 
 import math
 import os
+import platform
 from typing import Any, Union
 
 import numpy as np
@@ -22,6 +23,23 @@ ISCLOSE_ABS_TOL = float(os.environ.get("SENDNN_INFERENCE_TEST_ABS_TOL", "0.08"))
 ISCLOSE_ABS_TOL_QUANTIZATION = float(
     os.environ.get("SENDNN_INFERENCE_TEST_QUANTIZED_ABS_TOL", "0.17")
 )
+# FP8 matmul rounding diverges on ppc64le/s390x vs x86; correct tokens are
+# still selected, but per-token probability mass differs enough to exceed the
+# x86 tolerance. Bump only on those archs.
+ISCLOSE_ABS_TOL_QUANTIZATION_NON_X86 = float(
+    os.environ.get("SENDNN_INFERENCE_TEST_QUANTIZED_ABS_TOL_NON_X86", "0.25")
+)
+
+_QUANTIZED_ABS_TOL_PLATFORM_OVERRIDES = {
+    "s390x": ISCLOSE_ABS_TOL_QUANTIZATION_NON_X86,
+    "ppc64le": ISCLOSE_ABS_TOL_QUANTIZATION_NON_X86,
+}
+
+
+def _quantized_abs_tol() -> float:
+    return _QUANTIZED_ABS_TOL_PLATFORM_OVERRIDES.get(
+        platform.machine(), ISCLOSE_ABS_TOL_QUANTIZATION
+    )
 
 HF_RESULT_CACHE = HFResultCache()
 
@@ -211,7 +229,7 @@ def compare_results(
                 if "FP8" in model:
                     # TODO: Improve this. For now our testing model can be
                     # solved with this logic
-                    abs_tol = ISCLOSE_ABS_TOL_QUANTIZATION
+                    abs_tol = _quantized_abs_tol()
                 else:
                     abs_tol = ISCLOSE_ABS_TOL
 
@@ -387,7 +405,7 @@ def setup_golden_token(
     sampling_params: Union[SamplingParams, list[SamplingParams]],
     hf_outputs: list[dict[str, Any]],
 ) -> list[SamplingParams]:
-    abs_tol = ISCLOSE_ABS_TOL_QUANTIZATION if model.is_quantized else ISCLOSE_ABS_TOL
+    abs_tol = _quantized_abs_tol() if model.is_quantized else ISCLOSE_ABS_TOL
 
     if isinstance(sampling_params, SamplingParams):
         # golden tokens injection is per request, so we clone SamplingParams
