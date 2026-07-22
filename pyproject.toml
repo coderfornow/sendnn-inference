@@ -13,11 +13,16 @@ license = {text = "Apache 2"}
 dependencies = [
     "fms-model-optimizer[fp8-infer]>=0.8.3,<0.9",
     "ibm-fms>=1.11.1,<2",
-    # NB: use strict < with the next patch version to not exclude versions with
-    # build metadata suffixes
-    "vllm>=0.24.0,<0.25.2",
-    # transformers 5.12.1 includes fixes required for our mistral and granite-4.1-8b models.
-    "transformers>=5.12.1",
+    # granite-swa build: vllm and transformers are sourced from forks (see
+    # [tool.uv.sources]) that carry sliding-window-attention support for
+    # granite-4.1-20b. The fork versions fall outside the upstream release
+    # bounds, so the pins are relaxed here. vLLM's built version is fixed via
+    # VLLM_VERSION_OVERRIDE in extra-build-variables (branch checkouts have no
+    # release tag on their ancestry, so setuptools_scm would otherwise pick a
+    # misleading version).
+    "vllm",
+    # The granite-swa-model transformers fork reports 5.8.0.dev0.
+    "transformers>=5.8.0.dev0",
 
     # Specific torch version overrides handled by uv
     "torch",
@@ -88,11 +93,16 @@ override-dependencies = [
 # This adds constraints to all dependent build environments, which will ensure everything is built
 # with the same version of torch. This CANNOT conflict with a package's existing build dependencies
 build-constraint-dependencies = []
-# This ensures that we build with the empty backend for vLLM
-extra-build-variables = { vllm = { VLLM_TARGET_DEVICE = "empty" } }
+# This ensures that we build with the empty backend for vLLM.
+# VLLM_VERSION_OVERRIDE fixes the reported version for the granite-swa branch
+# build (no release tag on its ancestry). Set to the vLLM API level that
+# sendnn-inference targets; adjust if the fork tracks a different base.
+extra-build-variables = { vllm = { VLLM_TARGET_DEVICE = "empty", VLLM_VERSION_OVERRIDE = "0.25.1" } }
 
 [tool.uv.sources]
-vllm = { git = "https://github.com/vllm-project/vllm", rev = "v0.25.1" }
+# granite-swa forks with sliding-window-attention support for granite-4.1-20b.
+vllm = { git = "https://github.com/yannicks1/vllm", rev = "granite-swa" }
+transformers = { git = "https://github.com/Bharat-Runwal/transformers", rev = "granite-swa-model" }
 torch = [
   { index = "pytorch-cpu" },
 ]
