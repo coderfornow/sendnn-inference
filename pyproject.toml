@@ -14,9 +14,10 @@ dependencies = [
     "fms-model-optimizer[fp8-infer]>=0.8.3,<0.9",
     "ibm-fms>=1.11.1,<2",
     # NB: use strict < with the next patch version to not exclude versions with
-    # build metadata suffixes
-    "vllm>=0.24.0,<0.24.1",
-    # transformers 5.12.1 includes fixes required for our mistral and granite-4.1-8b models.
+    # build metadata suffixes (the empty-target build appends +empty)
+    "vllm>=0.26.0,<0.26.1",
+    # transformers granite-4.1 SWA fork (daviswer@granite-swa, reports 5.15.0.dev0);
+    # >=5.12.1 kept for the mistral/granite-4.1-8b fixes, satisfied by the fork.
     "transformers>=5.12.1",
 
     # Specific torch version overrides handled by uv
@@ -64,6 +65,13 @@ override-dependencies = [
     # causing import failure on headless Linux systems.
     "opencv-python-headless==4.12.0.88",
 
+    # Force the granite-swa transformers fork (reports 5.15.0.dev0) regardless of
+    # the <=5.12.1 cap fms-model-optimizer 0.8.x declares (no FMO >=0.9 exists yet).
+    # FMO's capped code is its fp8 path, which the fp16 granite-4.1 flow does not
+    # exercise, so overriding the cap is safe. Unconditional: transformers is a
+    # pure-Python dep needed on every platform, including s390x/ppc64le.
+    "transformers",
+
     # Skip packages on s390x and ppc64le, expected to be pre-installed
     "vllm ; platform_machine not in 's390x, ppc64le'",
     "ray; platform_machine not in 's390x, ppc64le'",
@@ -88,11 +96,18 @@ override-dependencies = [
 # This adds constraints to all dependent build environments, which will ensure everything is built
 # with the same version of torch. This CANNOT conflict with a package's existing build dependencies
 build-constraint-dependencies = []
-# This ensures that we build with the empty backend for vLLM
-extra-build-variables = { vllm = { VLLM_TARGET_DEVICE = "empty" } }
+# This ensures that we build with the empty backend for vLLM. VLLM_VERSION_OVERRIDE
+# forces the built version (the fork is pinned to a commit with no release tag, so
+# setuptools_scm cannot derive a truthful version); vLLM's setup.py maps this to
+# SETUPTOOLS_SCM_PRETEND_VERSION and appends +empty for the empty target.
+extra-build-variables = { vllm = { VLLM_TARGET_DEVICE = "empty", VLLM_VERSION_OVERRIDE = "0.26.0" } }
 
 [tool.uv.sources]
-vllm = { git = "https://github.com/vllm-project/vllm", rev = "v0.24.0" }
+# granite-4.1 SWA forks (both daviswer@granite-swa), pinned to the PR head commits:
+#   vllm         PR vllm-project/vllm#48270       (v0.26.0-based)
+#   transformers PR huggingface/transformers#47179 (reports 5.15.0.dev0)
+vllm = { git = "https://github.com/daviswer/vllm", rev = "b8c8ce2caacc457be29f11ef9fecccb336ad7ae2" }
+transformers = { git = "https://github.com/daviswer/transformers", rev = "fca719cce254e1cadb9812c4cfe411fd0fc1ecac" }
 torch = [
   { index = "pytorch-cpu" },
 ]
